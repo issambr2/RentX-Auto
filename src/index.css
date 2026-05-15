@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@layer base {
+  @media print {
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body * {
+      visibility: hidden;
+    }
+    .print-content, .print-content * {
+      visibility: visible;
+    }
+    .print-content {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+    }
+    .print-hidden {
+      display: none !important;
+    }
+  }
+}
+
+.resizable-modal {
+  resize: both;
+  overflow: auto !important;
+  min-width: 400px;
+  min-height: 300px;
+}
+
+.resizable-modal::-webkit-resizer {
+  border-width: 8px;
+  border-style: solid;
+  border-color: transparent #10b981 #10b981 transparent;
+}
