@@ -44,7 +44,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'rentx-auto-secret-2025-stable';
 
 app.use(cors());
@@ -1417,29 +1417,34 @@ app.post('/api/system/reconnect', authenticateToken, (req: any, res: any) => {
 async function startServer() {
   console.log('Starting server in', process.env.NODE_ENV || 'development', 'mode...');
   try {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Serveur prêt sur http://0.0.0.0:${PORT}`);
-    
-    // Start Vite AFTER listening so API routes are responsive immediately
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('Initializing Vite middleware...');
-      createViteServer({
-        server: { middlewareMode: true },
-        appType: 'spa',
-      }).then(vite => {
-        app.use(vite.middlewares);
-        console.log('Vite middleware initialized.');
-      }).catch(err => {
-        console.error('Vite middleware failed to initialize:', err);
-      });
-    } else {
-      const distPath = path.join(process.cwd(), 'dist');
-      if (fs.existsSync(distPath)) {
-        app.use(express.static(distPath));
-        app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Serveur prêt sur http://0.0.0.0:${PORT}`);
+      
+      // Start Vite AFTER listening so API routes are responsive immediately
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Initializing Vite middleware...');
+        createViteServer({
+          server: { middlewareMode: true },
+          appType: 'spa',
+        }).then(vite => {
+          app.use(vite.middlewares);
+          console.log('Vite middleware initialized.');
+        }).catch(err => {
+          console.error('Vite middleware failed to initialize:', err);
+        });
+      } else {
+        const distPath = path.join(process.cwd(), 'dist');
+        if (fs.existsSync(distPath)) {
+          app.use(express.static(distPath));
+          app.get('*all', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
+        }
       }
-    }
-  });
+    });
+
+    server.on('error', (err) => {
+      console.error('SERVER BIND ERROR:', err);
+      process.exit(1);
+    });
   } catch (e) {
     console.error('CRITICAL: Server startup failed:', e);
     process.exit(1);
