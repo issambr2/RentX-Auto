@@ -25,5 +25,5 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Démarrage avec node directement sur le fichier compilé
-CMD ["node", "dist/server.js"]
+# Démarrage avec node directement sur le fichier compilé (.cjs car c'est ce que produit esbuild)
+CMD ["node", "dist/server.cjs"]
