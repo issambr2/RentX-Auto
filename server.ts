@@ -18,12 +18,25 @@ const __dirname = path.dirname(__filename);
 
 // Database path
 const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'database.sqlite');
+
+// Ensure database directory exists
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  try {
+    fs.mkdirSync(dbDir, { recursive: true });
+    console.log(`Created database directory: ${dbDir}`);
+  } catch (err) {
+    console.error(`Failed to create database directory ${dbDir}:`, err);
+  }
+}
+
 const db = new Database(dbPath);
 db.pragma('foreign_keys = ON');
 db.pragma('journal_mode = WAL');
 
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err);
+  // Do not exit immediately, but log it clearly
 });
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -31,7 +44,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const app = express();
-const PORT = 3000; // Force 3000 for AI Studio environment
+const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'rentx-auto-secret-2025-stable';
 
 app.use(cors());
@@ -1423,7 +1436,7 @@ async function startServer() {
       const distPath = path.join(process.cwd(), 'dist');
       if (fs.existsSync(distPath)) {
         app.use(express.static(distPath));
-        app.get('*all', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
+        app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
       }
     }
   });
