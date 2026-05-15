@@ -16,32 +16,462 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Database path
-const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'database.sqlite');
-
-// Ensure database directory exists
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
+let db: Database.Database;
+let dbPath: string;
+function initDb(database: Database.Database) {
+  console.log('Initializing SQLite Database tables...');
   try {
-    fs.mkdirSync(dbDir, { recursive: true });
-    console.log(`Created database directory: ${dbDir}`);
-  } catch (err) {
-    console.error(`Failed to create database directory ${dbDir}:`, err);
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        fullName TEXT,
+        role TEXT DEFAULT 'customer',
+        permissions TEXT, -- JSON
+        isActive INTEGER DEFAULT 1,
+        officeId TEXT,
+        officeIds TEXT, -- JSON array
+        lastLogin TEXT,
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS clients (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        address TEXT,
+        city TEXT,
+        postalCode TEXT,
+        licenseNumber TEXT,
+        licenseExpiry TEXT,
+        passportNumber TEXT,
+        passportExpiry TEXT,
+        nationality TEXT,
+        birthDate TEXT,
+        birthPlace TEXT,
+        customerType TEXT DEFAULT 'individual',
+        category TEXT DEFAULT 'regular',
+        loyaltyPoints INTEGER DEFAULT 0,
+        loyaltyStatus TEXT DEFAULT 'bronze',
+        registrationDate TEXT,
+        lastRentalDate TEXT,
+        totalRentals INTEGER DEFAULT 0,
+        totalSpent REAL DEFAULT 0,
+        isBlocked INTEGER DEFAULT 0,
+        blockReason TEXT,
+        officeId TEXT,
+        source TEXT,
+        authUid TEXT,
+        cin TEXT,
+        dob TEXT,
+        licenseIssueDate TEXT,
+        cinRecto TEXT,
+        cinVerso TEXT,
+        licenseRecto TEXT,
+        licenseVerso TEXT,
+        passportPhoto TEXT,
+        agentName TEXT,
+        status TEXT DEFAULT 'active',
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TEXT
+      );
+      CREATE TABLE IF NOT EXISTS vehicles (
+          id TEXT PRIMARY KEY, 
+          brand TEXT NOT NULL, 
+          model TEXT NOT NULL, 
+          plate TEXT UNIQUE NOT NULL,
+          vin TEXT,
+          year INTEGER, 
+          color TEXT, 
+          status TEXT DEFAULT 'available', 
+          fuelType TEXT, 
+          transmission TEXT,
+          type TEXT,
+          mileage INTEGER DEFAULT 0, 
+          pricePerDay REAL, 
+          fuelLevel INTEGER DEFAULT 100,
+          lastMaintenance TEXT, 
+          nextMaintenance TEXT,
+          insuranceExpiry TEXT, 
+          vignetteExpiry TEXT,
+          technicalInspectionExpiry TEXT, 
+          leasingExpiry TEXT,
+          parkingLocation TEXT,
+          notes TEXT,
+          images TEXT, -- JSON array
+          features TEXT, -- JSON array
+          grayCardRecto TEXT,
+          grayCardVerso TEXT,
+          insurancePhoto TEXT,
+          vignettePhoto TEXT,
+          technicalInspectionPhoto TEXT,
+          leasingPhoto TEXT,
+          lastOilChangeMileage INTEGER,
+          nextOilChangeMileage INTEGER,
+          oilChangeInterval INTEGER,
+          isSubcontracted INTEGER DEFAULT 0,
+          ownerName TEXT,
+          washStatus TEXT DEFAULT 'clean',
+          lastWashDate TEXT,
+          agentName TEXT,
+          officeId TEXT,
+          createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+      CREATE TABLE IF NOT EXISTS rentals (
+        id TEXT PRIMARY KEY,
+        contractNumber TEXT UNIQUE,
+        vehicleId TEXT,
+        clientId TEXT,
+        clientName TEXT,
+        clientPhone TEXT,
+        clientEmail TEXT,
+        clientCIN TEXT,
+        clientLicense TEXT,
+        clientDocs TEXT, -- JSON
+        signature TEXT,
+        contractPhotos TEXT, -- JSON
+        contractPhoto TEXT,
+        secondDriverId TEXT,
+        userId TEXT,
+        agentName TEXT,
+        checkedOutBy TEXT,
+        checkedInBy TEXT,
+        startDate TEXT NOT NULL,
+        startTime TEXT,
+        endDate TEXT NOT NULL,
+        endTime TEXT,
+        actualEndDate TEXT,
+        actualEndTime TEXT,
+        lateHours INTEGER DEFAULT 0,
+        lateFee REAL DEFAULT 0,
+        pickupLocation TEXT,
+        returnLocation TEXT,
+        dailyRate REAL,
+        totalDays INTEGER,
+        subtotalHT REAL,
+        totalAmountHT REAL,
+        vatRate REAL DEFAULT 19,
+        vatAmount REAL,
+        totalAmountTTC REAL,
+        totalAmount REAL,
+        depositAmount REAL,
+        depositReturned INTEGER DEFAULT 0,
+        paymentMethod TEXT,
+        documentType TEXT DEFAULT 'invoice',
+        paymentStatus TEXT DEFAULT 'pending',
+        paidAmount REAL DEFAULT 0,
+        departureMileage INTEGER,
+        returnDate TEXT,
+        returnMileage INTEGER,
+        fuelLevel INTEGER,
+        returnFuelLevel INTEGER,
+        washStatus TEXT DEFAULT 'clean',
+        washPrice REAL DEFAULT 0,
+        washPaid INTEGER DEFAULT 0,
+        discountAmount REAL DEFAULT 0,
+        discountType TEXT DEFAULT 'fixed',
+        taxRate REAL DEFAULT 19,
+        taxAmount REAL,
+        vehiclePlate TEXT,
+        subtotal REAL,
+        vehiclePhotos TEXT, -- JSON
+        isTransfer INTEGER DEFAULT 0,
+        airportName TEXT,
+        transferType TEXT,
+        vehicleSwaps TEXT, -- JSON
+        extensions TEXT, -- JSON array of extension history
+        withChauffeur INTEGER DEFAULT 0,
+        chauffeurPrice REAL DEFAULT 0,
+        notes TEXT,
+        officeId TEXT,
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (clientId) REFERENCES clients(id),
+        FOREIGN KEY (vehicleId) REFERENCES vehicles(id)
+      );
+      CREATE TABLE IF NOT EXISTS maintenances (
+        id TEXT PRIMARY KEY,
+        vehicleId TEXT NOT NULL,
+        clientId TEXT,
+        clientName TEXT,
+        clientEmail TEXT,
+        type TEXT,
+        description TEXT,
+        date TEXT NOT NULL,
+        cost REAL,
+        mileage INTEGER,
+        mileageAtService INTEGER,
+        status TEXT DEFAULT 'completed',
+        oilLiters REAL,
+        oilItemId TEXT,
+        hasFilter INTEGER DEFAULT 0,
+        filterItemId TEXT,
+        stockItemId TEXT,
+        stockItemQuantity REAL,
+        stockItemPrice REAL,
+        nextMaintenanceDate TEXT,
+        garageName TEXT,
+        paymentStatus TEXT DEFAULT 'pending',
+        paidAmount REAL DEFAULT 0,
+        paymentMethod TEXT,
+        isPaid INTEGER DEFAULT 0,
+        parts TEXT, -- JSON
+        officeId TEXT,
+        createdBy TEXT,
+        agentName TEXT,
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (vehicleId) REFERENCES vehicles(id)
+      );
+      CREATE TABLE IF NOT EXISTS expenses (
+        id TEXT PRIMARY KEY, officeId TEXT, category TEXT, subCategory TEXT, type TEXT, description TEXT, 
+        amount REAL NOT NULL, date TEXT NOT NULL, isPaid INTEGER DEFAULT 1, paymentMethod TEXT, 
+        vehicleId TEXT, createdBy TEXT, agentName TEXT, washId TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS siteSettings (
+        id TEXT PRIMARY KEY, contactEmail TEXT, contactPhone TEXT, address TEXT, facebookUrl TEXT, instagramUrl TEXT, value TEXT
+      );
+      CREATE TABLE IF NOT EXISTS settings (
+        id TEXT PRIMARY KEY, chauffeurPrice REAL, value TEXT
+      );
+      CREATE TABLE IF NOT EXISTS offices (
+        id TEXT PRIMARY KEY, name TEXT, address TEXT, phone TEXT, email TEXT, isActive INTEGER DEFAULT 1, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY, userId TEXT, title TEXT, message TEXT, type TEXT, read INTEGER DEFAULT 0, officeId TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS leasings (
+        id TEXT PRIMARY KEY,
+        vehicleId TEXT NOT NULL,
+        startDate TEXT,
+        endDate TEXT,
+        monthlyPayment REAL,
+        provider TEXT,
+        contractNumber TEXT,
+        totalAmount REAL,
+        deposit REAL,
+        status TEXT DEFAULT 'active',
+        isSubcontracted INTEGER DEFAULT 0,
+        subcontractorName TEXT,
+        subcontractorPhone TEXT,
+        subcontractorEmail TEXT,
+        commissionAmount REAL,
+        commissionType TEXT,
+        depositType TEXT,
+        payments TEXT,
+        documents TEXT,
+        officeId TEXT,
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS insurances (
+        id TEXT PRIMARY KEY, vehicleId TEXT, provider TEXT, policyNumber TEXT, startDate TEXT, endDate TEXT, amountHT REAL, vatAmount REAL, amountTTC REAL, status TEXT, notes TEXT, officeId TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS washes (
+        id TEXT PRIMARY KEY, officeId TEXT, vehicleId TEXT, vehiclePlate TEXT, clientId TEXT, clientName TEXT, type TEXT, date TEXT, time TEXT,
+        priceHT REAL, vatAmount REAL, priceTTC REAL, price REAL, cost REAL, isPaid INTEGER DEFAULT 0, paymentMethod TEXT, notes TEXT, 
+        createdBy TEXT, agentName TEXT, rentalId TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS stock (
+        id TEXT PRIMARY KEY, 
+        name TEXT NOT NULL, 
+        quantity REAL DEFAULT 0, 
+        minQuantity REAL DEFAULT 0, 
+        unit TEXT, 
+        priceTTC REAL, 
+        category TEXT, 
+        officeId TEXT, 
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS stockMovements (
+        id TEXT PRIMARY KEY, 
+        itemId TEXT NOT NULL, 
+        itemName TEXT,
+        type TEXT, -- in, out
+        quantity REAL,
+        priceTTC REAL,
+        date TEXT,
+        reason TEXT,
+        vehicleId TEXT,
+        vehiclePlate TEXT,
+        userId TEXT,
+        userName TEXT,
+        officeId TEXT,
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS workers (
+        id TEXT PRIMARY KEY, 
+        fullName TEXT NOT NULL, 
+        role TEXT, 
+        phone TEXT, 
+        email TEXT, 
+        address TEXT,
+        cin TEXT,
+        startDate TEXT,
+        baseSalary REAL, 
+        salaryType TEXT,
+        bankDetails TEXT,
+        notes TEXT,
+        status TEXT DEFAULT 'active',
+        officeId TEXT, 
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS attendance (
+        id TEXT PRIMARY KEY, 
+        workerId TEXT NOT NULL, 
+        date TEXT NOT NULL, 
+        status TEXT, 
+        isPaid INTEGER DEFAULT 0,
+        checkIn TEXT, 
+        checkOut TEXT, 
+        notes TEXT,
+        updatedAt TEXT,
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS salaryTransactions (
+        id TEXT PRIMARY KEY, 
+        workerId TEXT NOT NULL, 
+        officeId TEXT,
+        type TEXT, 
+        amount REAL, 
+        date TEXT, 
+        month TEXT,
+        note TEXT, 
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS salaryPayments (
+        id TEXT PRIMARY KEY, workerId TEXT, month TEXT, year INTEGER, amount REAL, date TEXT, status TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS transactions (
+        id TEXT PRIMARY KEY, officeId TEXT, type TEXT, category TEXT, amount REAL, 
+        date TEXT, description TEXT, paymentMethod TEXT, createdBy TEXT, agentName TEXT, 
+        rentalId TEXT, washId TEXT, maintenanceId TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id TEXT PRIMARY KEY, userId TEXT, action TEXT, entity TEXT, entityId TEXT, details TEXT, timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS gps_integrations (
+        id TEXT PRIMARY KEY, vehicleId TEXT, provider TEXT, deviceId TEXT, apiKey TEXT, settings TEXT, lastUpdate TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Migration for adding officeId if missing
+    const structuralCheck = [
+      'washes', 'expenses', 'rentals', 'vehicles', 'clients', 'users', 
+      'leasings', 'maintenances', 'stock', 'stockMovements', 'workers', 
+      'attendance', 'salaryTransactions', 'salaryPayments', 'transactions',
+      'notifications'
+    ];
+    structuralCheck.forEach(table => {
+      try {
+        const cols = database.prepare(`PRAGMA table_info(${table})`).all().map((c: any) => c.name);
+        if (!cols.includes('officeId')) {
+          database.prepare(`ALTER TABLE ${table} ADD COLUMN officeId TEXT`).run();
+        }
+      } catch (e) {}
+    });
+
+    // Client documents and extra fields migration
+    try {
+      const clientCols = database.prepare(`PRAGMA table_info(clients)`).all().map((c: any) => c.name);
+      const needed = [
+        { name: 'cin', type: 'TEXT' },
+        { name: 'dob', type: 'TEXT' },
+        { name: 'licenseIssueDate', type: 'TEXT' },
+        { name: 'cinRecto', type: 'TEXT' },
+        { name: 'cinVerso', type: 'TEXT' },
+        { name: 'licenseRecto', type: 'TEXT' },
+        { name: 'licenseVerso', type: 'TEXT' },
+        { name: 'passportPhoto', type: 'TEXT' },
+        { name: 'isBlocked', type: 'INTEGER DEFAULT 0' },
+        { name: 'blockReason', type: 'TEXT' },
+        { name: 'agentName', type: 'TEXT' },
+        { name: 'postalCode', type: 'TEXT' },
+        { name: 'source', type: 'TEXT' },
+        { name: 'authUid', type: 'TEXT' },
+        { name: 'passportNumber', type: 'TEXT' },
+        { name: 'status', type: 'TEXT DEFAULT "active"' },
+        { name: 'passportPhoto', type: 'TEXT' },
+        { name: 'passportExpiry', type: 'TEXT' },
+        { name: 'nationality', type: 'TEXT' },
+        { name: 'birthDate', type: 'TEXT' },
+        { name: 'birthPlace', type: 'TEXT' },
+        { name: 'updatedAt', type: 'TEXT' }
+      ];
+
+      // Migration mapping old column names if they exist
+      if (clientCols.includes('blacklisted') && !clientCols.includes('isBlocked')) {
+          database.prepare('ALTER TABLE clients RENAME COLUMN blacklisted TO isBlocked').run();
+          clientCols.push('isBlocked');
+      }
+      if (clientCols.includes('blacklistReason') && !clientCols.includes('blockReason')) {
+          database.prepare('ALTER TABLE clients RENAME COLUMN blacklistReason TO blockReason').run();
+          clientCols.push('blockReason');
+      }
+
+      needed.forEach(col => {
+        if (!clientCols.includes(col.name)) {
+          database.prepare(`ALTER TABLE clients ADD COLUMN ${col.name} ${col.type}`).run();
+        }
+      });
+    } catch (e) {}
+
+    // User bootstrap
+    try {
+      const adminEmails = ['brahemdesign@gmail.com', 'siwarbraham98@gmail.com', 'admin@rentx.tn'];
+      const adminPassword = bcrypt.hashSync('admin123', 10);
+      const adminPermissions = JSON.stringify(['dashboard', 'vehicles', 'clients', 'rentals', 'maintenance', 'expenses', 'planning', 'accounting', 'statistics', 'administration', 'settings', 'stock', 'gps', 'website']);
+
+      adminEmails.forEach(email => {
+        const existing = database.prepare('SELECT id, role FROM users WHERE email = ?').get(email) as any;
+        if (!existing) {
+          database.prepare('INSERT INTO users (id, email, password, fullName, role, permissions, isActive) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            .run(randomUUID(), email, adminPassword, 'Master Admin', 'master_admin', adminPermissions, 1);
+          console.log(`Admin user created: ${email}`);
+        } else {
+          database.prepare('UPDATE users SET role = ?, password = ?, permissions = ?, isActive = 1 WHERE email = ?')
+            .run('master_admin', adminPassword, adminPermissions, email);
+          console.log(`Admin role & password enforced: ${email}`);
+        }
+      });
+    } catch (e) {
+      console.error('Bootstrap error:', e);
+    }
+
+    // Seed default offices
+    try {
+      const offices = [
+        { id: 'bureau-central', name: 'Bureau Central', isActive: 1 }
+      ];
+      offices.forEach(office => {
+        const existing = database.prepare('SELECT id FROM offices WHERE id = ?').get(office.id);
+        if (!existing) {
+          database.prepare('INSERT INTO offices (id, name, isActive) VALUES (?, ?, ?)')
+            .run(office.id, office.name, office.isActive);
+          console.log(`Default office created: ${office.name}`);
+        }
+      });
+    } catch (e) {
+      console.error('Office seeding error:', e);
+    }
+
+    // Seed default siteSettings
+    try {
+      const homepageSettings = database.prepare('SELECT id FROM siteSettings WHERE id = ?').get('homepage');
+      if (!homepageSettings) {
+        database.prepare('INSERT INTO siteSettings (id, contactEmail, contactPhone, address, value) VALUES (?, ?, ?, ?, ?)')
+          .run('homepage', 'contact@rentx.tn', '24621605', 'Rue Taieb Hachicha M\'saken', JSON.stringify({
+            heroTitle: 'Louez votre voiture en toute simplicité',
+            heroSubtitle: 'La solution de location premium en Tunisie',
+          }));
+        console.log('Default siteSettings created: homepage');
+      }
+    } catch (e) {
+      console.error('siteSettings seeding error:', e);
+    }
+  } catch (e) {
+    console.error('CRITICAL: Database init failed:', e);
+    process.exit(1);
   }
 }
-
-const db = new Database(dbPath);
-db.pragma('foreign_keys = ON');
-db.pragma('journal_mode = WAL');
-
-process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION:', err);
-  // Do not exit immediately, but log it clearly
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('UNHANDLED REJECTION:', reason);
-});
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -65,465 +495,13 @@ app.get('/api/ping', (req: any, res: any) => {
   res.send('pong');
 });
 
-// --- DATABASE INIT ---
-function initDb() {
-  console.log('Initializing SQLite Database...');
-try {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      fullName TEXT,
-      role TEXT DEFAULT 'customer',
-      permissions TEXT, -- JSON
-      isActive INTEGER DEFAULT 1,
-      officeId TEXT,
-      officeIds TEXT, -- JSON array
-      lastLogin TEXT,
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS clients (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT,
-      phone TEXT,
-      address TEXT,
-      city TEXT,
-      postalCode TEXT,
-      licenseNumber TEXT,
-      licenseExpiry TEXT,
-      passportNumber TEXT,
-      passportExpiry TEXT,
-      nationality TEXT,
-      birthDate TEXT,
-      birthPlace TEXT,
-      customerType TEXT DEFAULT 'individual',
-      category TEXT DEFAULT 'regular',
-      loyaltyPoints INTEGER DEFAULT 0,
-      loyaltyStatus TEXT DEFAULT 'bronze',
-      registrationDate TEXT,
-      lastRentalDate TEXT,
-      totalRentals INTEGER DEFAULT 0,
-      totalSpent REAL DEFAULT 0,
-      isBlocked INTEGER DEFAULT 0,
-      blockReason TEXT,
-      officeId TEXT,
-      source TEXT,
-      authUid TEXT,
-      cin TEXT,
-      dob TEXT,
-      licenseIssueDate TEXT,
-      cinRecto TEXT,
-      cinVerso TEXT,
-      licenseRecto TEXT,
-      licenseVerso TEXT,
-      passportPhoto TEXT,
-      agentName TEXT,
-      status TEXT DEFAULT 'active',
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TEXT
-    );
-    CREATE TABLE IF NOT EXISTS vehicles (
-        id TEXT PRIMARY KEY, 
-        brand TEXT NOT NULL, 
-        model TEXT NOT NULL, 
-        plate TEXT UNIQUE NOT NULL,
-        vin TEXT,
-        year INTEGER, 
-        color TEXT, 
-        status TEXT DEFAULT 'available', 
-        fuelType TEXT, 
-        transmission TEXT,
-        type TEXT,
-        mileage INTEGER DEFAULT 0, 
-        pricePerDay REAL, 
-        fuelLevel INTEGER DEFAULT 100,
-        lastMaintenance TEXT, 
-        nextMaintenance TEXT,
-        insuranceExpiry TEXT, 
-        vignetteExpiry TEXT,
-        technicalInspectionExpiry TEXT, 
-        leasingExpiry TEXT,
-        parkingLocation TEXT,
-        notes TEXT,
-        images TEXT, -- JSON array
-        features TEXT, -- JSON array
-        grayCardRecto TEXT,
-        grayCardVerso TEXT,
-        insurancePhoto TEXT,
-        vignettePhoto TEXT,
-        technicalInspectionPhoto TEXT,
-        leasingPhoto TEXT,
-        lastOilChangeMileage INTEGER,
-        nextOilChangeMileage INTEGER,
-        oilChangeInterval INTEGER,
-        isSubcontracted INTEGER DEFAULT 0,
-        ownerName TEXT,
-        washStatus TEXT DEFAULT 'clean',
-        lastWashDate TEXT,
-        agentName TEXT,
-        officeId TEXT,
-        createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-      );
-    CREATE TABLE IF NOT EXISTS rentals (
-      id TEXT PRIMARY KEY,
-      contractNumber TEXT UNIQUE,
-      vehicleId TEXT,
-      clientId TEXT,
-      clientName TEXT,
-      clientPhone TEXT,
-      clientEmail TEXT,
-      clientCIN TEXT,
-      clientLicense TEXT,
-      clientDocs TEXT, -- JSON
-      signature TEXT,
-      contractPhotos TEXT, -- JSON
-      contractPhoto TEXT,
-      secondDriverId TEXT,
-      userId TEXT,
-      agentName TEXT,
-      checkedOutBy TEXT,
-      checkedInBy TEXT,
-      startDate TEXT NOT NULL,
-      startTime TEXT,
-      endDate TEXT NOT NULL,
-      endTime TEXT,
-      actualEndDate TEXT,
-      actualEndTime TEXT,
-      lateHours INTEGER DEFAULT 0,
-      lateFee REAL DEFAULT 0,
-      pickupLocation TEXT,
-      returnLocation TEXT,
-      dailyRate REAL,
-      totalDays INTEGER,
-      subtotalHT REAL,
-      totalAmountHT REAL,
-      vatRate REAL DEFAULT 19,
-      vatAmount REAL,
-      totalAmountTTC REAL,
-      totalAmount REAL,
-      depositAmount REAL,
-      depositReturned INTEGER DEFAULT 0,
-      paymentMethod TEXT,
-      documentType TEXT DEFAULT 'invoice',
-      paymentStatus TEXT DEFAULT 'pending',
-      paidAmount REAL DEFAULT 0,
-      departureMileage INTEGER,
-      returnDate TEXT,
-      returnMileage INTEGER,
-      fuelLevel INTEGER,
-      returnFuelLevel INTEGER,
-      washStatus TEXT DEFAULT 'clean',
-      washPrice REAL DEFAULT 0,
-      washPaid INTEGER DEFAULT 0,
-      discountAmount REAL DEFAULT 0,
-      discountType TEXT DEFAULT 'fixed',
-      taxRate REAL DEFAULT 19,
-      taxAmount REAL,
-      vehiclePlate TEXT,
-      subtotal REAL,
-      vehiclePhotos TEXT, -- JSON
-      isTransfer INTEGER DEFAULT 0,
-      airportName TEXT,
-      transferType TEXT,
-      vehicleSwaps TEXT, -- JSON
-      extensions TEXT, -- JSON array of extension history
-      withChauffeur INTEGER DEFAULT 0,
-      chauffeurPrice REAL DEFAULT 0,
-      notes TEXT,
-      officeId TEXT,
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (clientId) REFERENCES clients(id),
-      FOREIGN KEY (vehicleId) REFERENCES vehicles(id)
-    );
-    CREATE TABLE IF NOT EXISTS maintenances (
-      id TEXT PRIMARY KEY,
-      vehicleId TEXT NOT NULL,
-      clientId TEXT,
-      clientName TEXT,
-      clientEmail TEXT,
-      type TEXT,
-      description TEXT,
-      date TEXT NOT NULL,
-      cost REAL,
-      mileage INTEGER,
-      mileageAtService INTEGER,
-      status TEXT DEFAULT 'completed',
-      oilLiters REAL,
-      oilItemId TEXT,
-      hasFilter INTEGER DEFAULT 0,
-      filterItemId TEXT,
-      stockItemId TEXT,
-      stockItemQuantity REAL,
-      stockItemPrice REAL,
-      nextMaintenanceDate TEXT,
-      garageName TEXT,
-      paymentStatus TEXT DEFAULT 'pending',
-      paidAmount REAL DEFAULT 0,
-      paymentMethod TEXT,
-      isPaid INTEGER DEFAULT 0,
-      parts TEXT, -- JSON
-      officeId TEXT,
-      createdBy TEXT,
-      agentName TEXT,
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (vehicleId) REFERENCES vehicles(id)
-    );
-    CREATE TABLE IF NOT EXISTS expenses (
-      id TEXT PRIMARY KEY, officeId TEXT, category TEXT, subCategory TEXT, type TEXT, description TEXT, 
-      amount REAL NOT NULL, date TEXT NOT NULL, isPaid INTEGER DEFAULT 1, paymentMethod TEXT, 
-      vehicleId TEXT, createdBy TEXT, agentName TEXT, washId TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS siteSettings (
-      id TEXT PRIMARY KEY, contactEmail TEXT, contactPhone TEXT, address TEXT, facebookUrl TEXT, instagramUrl TEXT, value TEXT
-    );
-    CREATE TABLE IF NOT EXISTS settings (
-      id TEXT PRIMARY KEY, chauffeurPrice REAL, value TEXT
-    );
-    CREATE TABLE IF NOT EXISTS offices (
-      id TEXT PRIMARY KEY, name TEXT, address TEXT, phone TEXT, email TEXT, isActive INTEGER DEFAULT 1, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS notifications (
-      id TEXT PRIMARY KEY, userId TEXT, title TEXT, message TEXT, type TEXT, read INTEGER DEFAULT 0, officeId TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS leasings (
-      id TEXT PRIMARY KEY,
-      vehicleId TEXT NOT NULL,
-      startDate TEXT,
-      endDate TEXT,
-      monthlyPayment REAL,
-      provider TEXT,
-      contractNumber TEXT,
-      totalAmount REAL,
-      deposit REAL,
-      status TEXT DEFAULT 'active',
-      isSubcontracted INTEGER DEFAULT 0,
-      subcontractorName TEXT,
-      subcontractorPhone TEXT,
-      subcontractorEmail TEXT,
-      commissionAmount REAL,
-      commissionType TEXT,
-      depositType TEXT,
-      payments TEXT,
-      documents TEXT,
-      officeId TEXT,
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS insurances (
-      id TEXT PRIMARY KEY, vehicleId TEXT, provider TEXT, policyNumber TEXT, startDate TEXT, endDate TEXT, amountHT REAL, vatAmount REAL, amountTTC REAL, status TEXT, notes TEXT, officeId TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS washes (
-      id TEXT PRIMARY KEY, officeId TEXT, vehicleId TEXT, vehiclePlate TEXT, clientId TEXT, clientName TEXT, type TEXT, date TEXT, time TEXT,
-      priceHT REAL, vatAmount REAL, priceTTC REAL, price REAL, cost REAL, isPaid INTEGER DEFAULT 0, paymentMethod TEXT, notes TEXT, 
-      createdBy TEXT, agentName TEXT, rentalId TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS stock (
-      id TEXT PRIMARY KEY, 
-      name TEXT NOT NULL, 
-      quantity REAL DEFAULT 0, 
-      minQuantity REAL DEFAULT 0, 
-      unit TEXT, 
-      priceTTC REAL, 
-      category TEXT, 
-      officeId TEXT, 
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS stockMovements (
-      id TEXT PRIMARY KEY, 
-      itemId TEXT NOT NULL, 
-      itemName TEXT,
-      type TEXT, -- in, out
-      quantity REAL,
-      priceTTC REAL,
-      date TEXT,
-      reason TEXT,
-      vehicleId TEXT,
-      vehiclePlate TEXT,
-      userId TEXT,
-      userName TEXT,
-      officeId TEXT,
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS workers (
-      id TEXT PRIMARY KEY, 
-      fullName TEXT NOT NULL, 
-      role TEXT, 
-      phone TEXT, 
-      email TEXT, 
-      address TEXT,
-      cin TEXT,
-      startDate TEXT,
-      baseSalary REAL, 
-      salaryType TEXT,
-      bankDetails TEXT,
-      notes TEXT,
-      status TEXT DEFAULT 'active',
-      officeId TEXT, 
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS attendance (
-      id TEXT PRIMARY KEY, 
-      workerId TEXT NOT NULL, 
-      date TEXT NOT NULL, 
-      status TEXT, 
-      isPaid INTEGER DEFAULT 0,
-      checkIn TEXT, 
-      checkOut TEXT, 
-      notes TEXT,
-      updatedAt TEXT,
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS salaryTransactions (
-      id TEXT PRIMARY KEY, 
-      workerId TEXT NOT NULL, 
-      officeId TEXT,
-      type TEXT, 
-      amount REAL, 
-      date TEXT, 
-      month TEXT,
-      note TEXT, 
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS salaryPayments (
-      id TEXT PRIMARY KEY, workerId TEXT, month TEXT, year INTEGER, amount REAL, date TEXT, status TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS transactions (
-      id TEXT PRIMARY KEY, officeId TEXT, type TEXT, category TEXT, amount REAL, 
-      date TEXT, description TEXT, paymentMethod TEXT, createdBy TEXT, agentName TEXT, 
-      rentalId TEXT, washId TEXT, maintenanceId TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS activity_logs (
-      id TEXT PRIMARY KEY, userId TEXT, action TEXT, entity TEXT, entityId TEXT, details TEXT, timestamp TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS gps_integrations (
-      id TEXT PRIMARY KEY, vehicleId TEXT, provider TEXT, deviceId TEXT, apiKey TEXT, settings TEXT, lastUpdate TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
 
-  // Migration for adding officeId if missing
-  const structuralCheck = [
-    'washes', 'expenses', 'rentals', 'vehicles', 'clients', 'users', 
-    'leasings', 'maintenances', 'stock', 'stockMovements', 'workers', 
-    'attendance', 'salaryTransactions', 'salaryPayments', 'transactions',
-    'notifications'
-  ];
-  structuralCheck.forEach(table => {
-    try {
-      const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c: any) => c.name);
-      if (!cols.includes('officeId')) {
-        db.prepare(`ALTER TABLE ${table} ADD COLUMN officeId TEXT`).run();
-      }
-    } catch (e) {}
-  });
-
-  // Client documents and extra fields migration
-  try {
-    const clientCols = db.prepare(`PRAGMA table_info(clients)`).all().map((c: any) => c.name);
-    const needed = [
-      { name: 'cin', type: 'TEXT' },
-      { name: 'dob', type: 'TEXT' },
-      { name: 'licenseIssueDate', type: 'TEXT' },
-      { name: 'cinRecto', type: 'TEXT' },
-      { name: 'cinVerso', type: 'TEXT' },
-      { name: 'licenseRecto', type: 'TEXT' },
-      { name: 'licenseVerso', type: 'TEXT' },
-      { name: 'passportPhoto', type: 'TEXT' },
-      { name: 'isBlocked', type: 'INTEGER DEFAULT 0' },
-      { name: 'blockReason', type: 'TEXT' },
-      { name: 'agentName', type: 'TEXT' },
-      { name: 'postalCode', type: 'TEXT' },
-      { name: 'source', type: 'TEXT' },
-      { name: 'authUid', type: 'TEXT' },
-      { name: 'passportNumber', type: 'TEXT' },
-      { name: 'status', type: 'TEXT DEFAULT "active"' },
-      { name: 'passportPhoto', type: 'TEXT' },
-      { name: 'passportExpiry', type: 'TEXT' },
-      { name: 'nationality', type: 'TEXT' },
-      { name: 'birthDate', type: 'TEXT' },
-      { name: 'birthPlace', type: 'TEXT' },
-      { name: 'updatedAt', type: 'TEXT' }
-    ];
-
-    // Migration mapping old column names if they exist
-    if (clientCols.includes('blacklisted') && !clientCols.includes('isBlocked')) {
-        db.prepare('ALTER TABLE clients RENAME COLUMN blacklisted TO isBlocked').run();
-        clientCols.push('isBlocked');
-    }
-    if (clientCols.includes('blacklistReason') && !clientCols.includes('blockReason')) {
-        db.prepare('ALTER TABLE clients RENAME COLUMN blacklistReason TO blockReason').run();
-        clientCols.push('blockReason');
-    }
-
-    needed.forEach(col => {
-      if (!clientCols.includes(col.name)) {
-        db.prepare(`ALTER TABLE clients ADD COLUMN ${col.name} ${col.type}`).run();
-      }
-    });
-  } catch (e) {}
-
-  // User bootstrap
-  try {
-    const adminEmails = ['brahemdesign@gmail.com', 'siwarbraham98@gmail.com', 'admin@rentx.tn'];
-    const isAdminEmail = (email: string) => adminEmails.includes(email.toLowerCase());
-    const adminPassword = bcrypt.hashSync('admin123', 10);
-    const adminPermissions = JSON.stringify(['dashboard', 'vehicles', 'clients', 'rentals', 'maintenance', 'expenses', 'planning', 'accounting', 'statistics', 'administration', 'settings', 'stock', 'gps', 'website']);
-
-    adminEmails.forEach(email => {
-      const existing = db.prepare('SELECT id, role FROM users WHERE email = ?').get(email) as any;
-      if (!existing) {
-        db.prepare('INSERT INTO users (id, email, password, fullName, role, permissions, isActive) VALUES (?, ?, ?, ?, ?, ?, ?)')
-          .run(randomUUID(), email, adminPassword, 'Master Admin', 'master_admin', adminPermissions, 1);
-        console.log(`Admin user created: ${email}`);
-      } else {
-        // Force master_admin role and update password to admin123
-        db.prepare('UPDATE users SET role = ?, password = ?, permissions = ?, isActive = 1 WHERE email = ?')
-          .run('master_admin', adminPassword, adminPermissions, email);
-        console.log(`Admin role & password enforced: ${email}`);
-      }
-    });
-  } catch (e) {
-    console.error('Bootstrap error:', e);
-  }
-
-  // Seed default offices
-  try {
-    const offices = [
-      { id: 'bureau-central', name: 'Bureau Central', isActive: 1 }
-    ];
-    offices.forEach(office => {
-      const existing = db.prepare('SELECT id FROM offices WHERE id = ?').get(office.id);
-      if (!existing) {
-        db.prepare('INSERT INTO offices (id, name, isActive) VALUES (?, ?, ?)')
-          .run(office.id, office.name, office.isActive);
-        console.log(`Default office created: ${office.name}`);
-      }
-    });
-  } catch (e) {
-    console.error('Office seeding error:', e);
-  }
-
-  // Seed default siteSettings
-  try {
-    const homepageSettings = db.prepare('SELECT id FROM siteSettings WHERE id = ?').get('homepage');
-    if (!homepageSettings) {
-      db.prepare('INSERT INTO siteSettings (id, contactEmail, contactPhone, address, value) VALUES (?, ?, ?, ?, ?)')
-        .run('homepage', 'contact@rentx.tn', '24621605', 'Rue Taieb Hachicha M\'saken', JSON.stringify({
-          heroTitle: 'Louez votre voiture en toute simplicité',
-          heroSubtitle: 'La solution de location premium en Tunisie',
-        }));
-      console.log('Default siteSettings created: homepage');
-    }
-  } catch (e) {
-    console.error('siteSettings seeding error:', e);
-  }
-} catch (e) {
-  console.error('CRITICAL: Database init failed:', e);
-  process.exit(1);
-}
-}
-
-initDb();
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('UNHANDLED REJECTION:', reason);
+});
 
 function migrateDb() {
   const table = 'vehicles';
@@ -1416,6 +1394,49 @@ app.post('/api/system/reconnect', authenticateToken, (req: any, res: any) => {
 
 async function startServer() {
   console.log('Starting server in', process.env.NODE_ENV || 'development', 'mode...');
+  
+  // Database path
+  dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'database.sqlite');
+  console.log(`Using database at: ${dbPath}`);
+
+  // Ensure database directory exists
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    try {
+      fs.mkdirSync(dbDir, { recursive: true });
+      console.log(`Created database directory: ${dbDir}`);
+    } catch (err) {
+      console.error(`Failed to create database directory ${dbDir}:`, err);
+      console.log('Falling back to local directory for database.');
+    }
+  }
+
+  try {
+    db = new Database(dbPath);
+    db.pragma('foreign_keys = ON');
+    db.pragma('journal_mode = WAL');
+    console.log('Database connected successfully.');
+    
+    // Call initDb after connection
+    initDb(db);
+    // Call migrateDb after init
+    migrateDb();
+  } catch (err) {
+    console.error('FAILED TO OPEN DATABASE:', err);
+    console.log('Attempting to use local fallback database...');
+    try {
+      dbPath = 'database.sqlite';
+      db = new Database(dbPath);
+      db.pragma('foreign_keys = ON');
+      db.pragma('journal_mode = WAL');
+      initDb(db);
+      migrateDb();
+    } catch (err2) {
+      console.error('CRITICAL: All database connection attempts failed.', err2);
+      process.exit(1);
+    }
+  }
+
   try {
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`Serveur prêt sur http://0.0.0.0:${PORT}`);

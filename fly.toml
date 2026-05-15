@@ -15,8 +15,8 @@ primary_region = "cdg"
   processes = ["app"]
 
   [[http_service.checks]]
-    grace_period = "10s"
-    interval = "30s"
+    grace_period = "60s"
+    interval = "20s"
     method = "get"
     timeout = "5s"
     path = "/api/health"
